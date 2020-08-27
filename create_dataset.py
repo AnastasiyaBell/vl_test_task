@@ -3,10 +3,12 @@ import face_recognition
 import matplotlib.pyplot as plt
 import requests
 import vk_api
+
 # %matplotlib inline
 
 from io import BytesIO
 from PIL import Image
+from PIL import UnidentifiedImageError
 from pathlib import Path
 
 class FilterUsersList:
@@ -66,7 +68,11 @@ def get_crops_from_images(user_photos):
             if copy['height'] >= 50 and copy['width'] >= 50:
                 print("frame is ok")
                 fileRequest = requests.get(copy['url'])
-                doc = Image.open(BytesIO(fileRequest.content))
+                try:
+                    doc = Image.open(BytesIO(fileRequest.content))
+                except UnidentifiedImageError:
+                    print("PIL cannot identify image")
+                    continue
                 plt.imshow(doc)
                 plt.show()
                 doc.save("processed_photo.jpg")
