@@ -66,15 +66,15 @@ def get_crops_from_images(user_photos):
     for frame in user_photos['items']:
         for copy in frame['sizes']:
             if copy['height'] >= 50 and copy['width'] >= 50:
-                print("frame is ok")
+                #print("frame is ok")
                 fileRequest = requests.get(copy['url'])
                 try:
                     doc = Image.open(BytesIO(fileRequest.content))
                 except UnidentifiedImageError:
                     print("PIL cannot identify image")
                     continue
-                plt.imshow(doc)
-                plt.show()
+                #plt.imshow(doc)
+                #plt.show()
                 try:
                     doc.save("processed_photo.jpg")
                 except KeyError:
@@ -86,14 +86,14 @@ def get_crops_from_images(user_photos):
                 image = face_recognition.load_image_file("processed_photo.jpg")
                 face_locations = []
                 face_locations = face_recognition.face_locations(image, model='cnn')
-                print("face_locations are ready", face_locations)
+                #print("face_locations are ready", face_locations)
                 crop_counter = 0
                 crops = []
                 for crop in face_locations:
                     if crop[2]-crop[0] >= 30 and crop[1]-crop[3] >= 30:
                         crops.append(image[crop[0]:crop[2],crop[3]:crop[1]])
-                        plt.imshow(crops[crop_counter])
-                        plt.show()
+                        #plt.imshow(crops[crop_counter])
+                        #plt.show()
                         crop_counter += 1
                 if crop_counter >= 1 and crop_counter <= 5:
                      images.append(crops)
@@ -103,9 +103,8 @@ def get_crops_from_images(user_photos):
 
 def main():
 
-   #country = vk.database.getCountries(code='KZ')['items'][0]['id']
     country = 'KZ'
-    root_directory = 'dataset_vk_cnn'
+    root_directory = 'dataset'
     Path(root_directory).mkdir(parents=True, exist_ok=True)    
     correct_users_photos = FilterUsersList(country, 3, 300)
     users_count = 0
