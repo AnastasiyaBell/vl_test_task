@@ -75,7 +75,14 @@ def get_crops_from_images(user_photos):
                     continue
                 plt.imshow(doc)
                 plt.show()
-                doc.save("processed_photo.jpg")
+                try:
+                    doc.save("processed_photo.jpg")
+                except KeyError:
+                    print("Incorrect key for mode")
+                    continue
+                except OSError:
+                    print("OSError")
+                    continue
                 image = face_recognition.load_image_file("processed_photo.jpg")
                 face_locations = []
                 face_locations = face_recognition.face_locations(image, model='cnn')
