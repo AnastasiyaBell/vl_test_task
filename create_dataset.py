@@ -9,73 +9,101 @@ from io import BytesIO
 from PIL import Image
 from pathlib import Path
 
+class FilterUsersList:
+    def __init__(self, country, min_photos, max_photos, users_count=10000000):
+        login = input("Your vk login:")
+        password = input("Your vk password:")
+        vk_session = vk_api.VkApi(login, password)
+        vk_session.auth(token_only=True)
+        self.vk = vk_session.get_api()
+ 
+        self.country = self.vk.database.getCountries(code=country)['items'][0]['id']
+        self.users_count = users_count
+        self.min_photos = min_photos
+        self.max_photos = max_photos
+        self.current_user = 0
+        self.correct_users_counter = 0
+        self.offset = 0
+        self.users_list = {'count': 0, 'items': []}
+        
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while self.current_user < self.users_count:
+            if not self.users_list['items']: 
+                self.users_list = self.vk.users.search(                                           
+                  country=self.country, count=1000,
+                  offset=self.offset, has_photo=1)
+                self.offset += 1000  
+            for _ in range(len(self.users_list['items'])):
+                elem = self.users_list['items'].pop()
+                self.current_user += 1
+                if not self.vk.users.get(user_id=elem['id'])[0]['is_closed']:
+                    users_profile_photos = self.vk.photos.get(                           
+                        owner_id=elem['id'], album_id='profile', count=1000)
+                    if (users_profile_photos['count'] >= 3 
+                            and users_profile_photos['count'] <= 300):
+                        self.correct_users_counter += 1
+                        return elem['id'], users_profile_photos
+        raise StopIteration
+
+def saving_profile_photos(root_directory, user_id, crops_from_images):
+    directory = Path(root_directory).joinpath(str(user_id))             
+    Path(directory).mkdir(parents=True, exist_ok=True)                  
+    for im in range(len(crops_from_images)):                                       
+        for cr in range(len(crops_from_images[im])):                               
+            image_name = ('prt_'                                        
+                        + '{0:{fill}{align}9}_'.format(im, fill='0', align='>')
+                        + '{0:{fill}{align}9}'.format(cr, fill='0', align='>') + '.jpg')
+            Image.fromarray(crops_from_images[im][cr]).save(Path(directory).joinpath(image_name))
+    return
+
+def get_crops_from_images(user_photos):
+    images = []
+    for frame in user_photos['items']:
+        for copy in frame['sizes']:
+            if copy['height'] >= 50 and copy['width'] >= 50:
+                print("frame is ok")
+                fileRequest = requests.get(copy['url'])
+                doc = Image.open(BytesIO(fileRequest.content))
+                plt.imshow(doc)
+                plt.show()
+                doc.save("processed_photo.jpg")
+                image = face_recognition.load_image_file("processed_photo.jpg")
+                face_locations = []
+                face_locations = face_recognition.face_locations(image, model='cnn')
+                print("face_locations are ready", face_locations)
+                crop_counter = 0
+                crops = []
+                for crop in face_locations:
+                    if crop[2]-crop[0] >= 30 and crop[1]-crop[3] >= 30:
+                        crops.append(image[crop[0]:crop[2],crop[3]:crop[1]])
+                        plt.imshow(crops[crop_counter])
+                        plt.show()
+                        crop_counter += 1
+                if crop_counter >= 1 and crop_counter <= 5:
+                     images.append(crops)
+                break
+    return images
+    
+
 def main():
 
-    login = input()
-    password = input()
-    vk_session = vk_api.VkApi(login, password)
+   #country = vk.database.getCountries(code='KZ')['items'][0]['id']
+    country = 'KZ'
+    root_directory = 'dataset_vk_cnn'
+    Path(root_directory).mkdir(parents=True, exist_ok=True)    
+    correct_users_photos = FilterUsersList(country, 3, 300)
+    users_count = 0
     
-    try:
-        vk_session.auth(token_only=True)
-    except vk_api.AuthError as error_msg:
-        print(error_msg)
-        return
-
-    vk = vk_session.get_api()
-    country = vk.database.getCountries(code='KZ')['items'][0]['id']
-    users_counter = 0
-    offset = 0
-    search_photo_counter = 1000
-    while users_counter < 256:
-        users_list = vk.users.search(country=country, count=search_photo_counter, offset=offset, has_photo=1)
-        offset += search_photo_counter
-
-        users_list_ids = []
-        for i in users_list['items']:
-            users_list_ids.append(i['id'])
-        
-        for id in users_list_ids:
-            if vk.users.get(user_id=id)[0]['is_closed'] == False:
-                users_profile_photos = vk.photos.get(owner_id=id, album_id='profile', count=1000)
-                print(users_profile_photos)
-                if users_profile_photos['count'] >= 3 and users_profile_photos['count'] <= 300:
-                    images = []
-                    photo_counter = 0
-                    for frame in users_profile_photos['items']:
-                        for copy in frame['sizes']:
-                            if copy['height'] >= 50 and copy['width'] >= 50:
-                                print("frame is ok")
-                                fileRequest = requests.get(copy['url'])
-                                doc = Image.open(BytesIO(fileRequest.content))
-                                plt.imshow(doc)
-                                plt.show()
-                                doc.save("processed_photo.jpg")
-                                image = face_recognition.load_image_file("processed_photo.jpg")
-                                face_locations = []
-                                face_locations = face_recognition.face_locations(image)
-                                print("face_locations are ready", face_locations)
-                                crop_counter = 0
-                                crops = []
-                                for crop in face_locations:
-                                    if crop[2]-crop[0] >= 30 and crop[1]-crop[3] >= 30:
-                                        crops.append(image[crop[0]:crop[2],crop[3]:crop[1]])
-                                        plt.imshow(crops[crop_counter])
-                                        plt.show()
-                                        crop_counter += 1
-                                if crop_counter >= 1 and crop_counter <= 5:
-                                    images.append(crops)
-                                    photo_counter += 1
-                                break
-                    if photo_counter >= 3:
-                        users_counter += 1
-                        root_directory = 'dataset_vk'
-                        directory = Path(root_directory).joinpath(str(id))
-                        Path(directory).mkdir(parents=True, exist_ok=True)
-                        for im in range(len(images)):
-                            for cr in range(len(images[im])):
-                                image_name = 'prt_' + '{0:{fill}{align}9}_'.format(im, fill='0', align='>') + '{0:{fill}{align}9}'.format(cr, fill='0', align='>') + '.jpg'
-                                Image.fromarray(images[im][cr]).save(Path(directory).joinpath(image_name))
-    print("Count of appropriated profiles", users_counter)
-
+    for user_id, user in correct_users_photos:
+        images = get_crops_from_images(user)
+        if len(images) >= 3:
+            saving_profile_photos(root_directory, user_id, images)
+            users_count += 1
+            if users_count >= 256:
+                break
+       
 if __name__ == '__main__':
     main()
